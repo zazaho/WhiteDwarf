@@ -1,0 +1,26 @@
+expand 1.000001
+lines 3 1000
+read i 1
+read m 2
+read r 3
+read p 4
+set lr = ln(r)
+set lp = ln(p)
+set lm = ln(m)
+ erase
+ limits m lr
+ box 1 2 3 3
+ xlabel m/Msun
+ ltype 2
+ connect m lr
+ limits m lp
+ box 3 3 3 2
+ ltype 3
+ connect m lp
+ relocate .1 16.5
+ draw .2 16.5
+ putlabel 6 log(\gr)
+ ltype 2
+ relocate .1 17
+ draw .2 17
+ putlabel 6 log(r/Rsun)

@@ -1,0 +1,286 @@
+\documentstyle[lgrind,fancyhead]{article}
+\pagestyle{plain}
+\lhead[\fancyplain{}{\bf\thepage}]{\fancyplain{}{\bf wdenv.c}}
+\rhead[\fancyplain{}{\bf\thepage}]{\fancyplain{}{\bf wdenv.c}}
+\cfoot{}
+\begin{document}
+\begin{lgrind}
+\File{wdenv.c},{14:24},{Jan 12 1998}
+\L{\LB{\K{\#include}_\<\V{stdio}.\V{h}\>}}
+\L{\LB{\K{\#include}_\<\V{math}.\V{h}\>}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* This determines the smallest step in w-space \*\1\CE{}}}
+\L{\LB{\C{}\1\* if the wstep goes bellow this limit stop searching for better w \*\1\CE{}_}}
+\L{\LB{\K{\#define}_\V{MinWstep}_1e\-300}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Prototype declarations of all functions used by the program \*\1\CE{}}}
+\L{\LB{\K{void}_\V{init}();}}
+\L{\LB{\K{int}_\V{menu}(\K{double}_\*\V{RadiusStart},\K{double}_\*\V{RadiusEnd},\K{int}_\*\V{NRadiusSteps});}}
+\L{\LB{\K{void}_\V{findw}(\K{double}_\V{radius});}}
+\L{\LB{\K{double}_\V{Pe}(\K{double}_\V{a},\K{double}_\V{b},\K{double}_\V{w});}}
+\L{\LB{\K{double}_\V{Pd}(\K{double}_\V{a},\K{double}_\V{b},\K{double}_\V{w});}}
+\L{\LB{\K{double}_\V{X}(\K{double}_\V{a},\K{double}_\V{b},\K{double}_\V{w});}}
+\L{\LB{\K{double}_\V{RADIUS}(\K{double}_\V{a},\K{double}_\V{w},\K{double}_\V{R});}}
+\L{\LB{\K{double}_\V{MASS}(\K{double}_\V{a},\K{double}_\V{w});}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Some constants used by the program \*\1\CE{}}}
+\L{\LB{\V{const}_\K{double}_\V{c}______=2.99791e8,_\1\1_\V{m}\1\V{s}}}
+\L{\LB{_____________\V{pi}_____=3.14159,}}
+\L{\LB{_____________\V{me}_____=9.10953e\-31,_\1\1_\V{kg}_}}
+\L{\LB{_____________\V{mp}_____=1.67265e\-27,_\1\1_\V{kg}}}
+\L{\LB{_____________\V{planck}_=6.6237e\-34,_\1\1_\V{Js}}}
+\L{\LB{_____________\V{k}______=1.38024e\-23,_\1\1_\V{J}\1\V{K}}}
+\L{\LB{_____________\V{G}______=6.668e\-11,_\1\1_\V{N}_\V{m}\^2\1\V{kg}\^2}}
+\L{\LB{_____________\V{Lsun}___=3.86e26,_\1\1_\V{W}}}
+\L{\LB{_____________\V{Msun}___=1.991e30,_\1\1_\V{kg}}}
+\L{\LB{_____________\V{Rsun}___=6.960e8,_\1\1_\V{m}}}
+\L{\LB{_____________\V{mue}____=2e0,}}
+\L{\LB{_____________\V{mu}_____=1.3e0;}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* These variables hold the values of the model we are looking for: \*\1\CE{}}}
+\L{\LB{\C{}\1\* M       =  mass of the dwarf in solarmass. \*\1\CE{}}}
+\L{\LB{\C{}\1\* L =  luminosity in solarluminosity \*\1\CE{}}}
+\L{\LB{\C{}\1\* They are set to some default values. \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\K{double}_\V{M}_=_1.053,}}
+\L{\LB{_______\V{L}_=_3.02e\-3;}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* pointer to file to hold output \*\1\CE{}}}
+\L{\LB{__\V{FILE}_\*\V{fp};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* name of file to use for output \*\1\CE{}}}
+\L{\LB{\K{char}_\V{outfile}[40]_=_\S{}\"wdenv.dat\"\SE{};}}
+\L{\LB{_________}}
+\L{\LB{\K{void}_\V{main}()}}
+\L{\LB{\{}}
+\L{\LB{\C{}\1\* dummy variable to hold user responses to questions \*\1\CE{}}}
+\L{\LB{\C{}\1\* we are not really interested in their value \*\1\CE{}}}
+\L{\LB{__\K{char}_\V{cdummy};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* RadiusStart,RadiusEnd hold minimum and maximum radii to make models for \*\1\CE{}}}
+\L{\LB{\C{}\1\* in solarradii  also set to default values\*\1\CE{}}}
+\L{\LB{__\K{double}_}}
+\L{\LB{____\V{RadiusStart}_=_.001,}}
+\L{\LB{____\V{RadiusEnd}___=_.011;}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* NRadiusSteps hold number of radii to make envelope for \*\1\CE{}}}
+\L{\LB{__\K{int}_}}
+\L{\LB{____\V{NRadiusSteps}_=_21,}}
+\L{\LB{____\V{i},\V{idummy};}}
+\L{\LB{}}
+\L{\LB{__\K{do}_\C{}\1\* while (1) =\> repeat endlessly \*\1\CE{}}}
+\L{\LB{____\{}}
+\L{\LB{____}}
+\L{\LB{\C{}\1\*  menu of choices \*\1\CE{}}}
+\L{\LB{______\K{do}_}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{idummy}_=_\V{menu}(\&\V{RadiusStart},\&\V{RadiusEnd},\&\V{NRadiusSteps});}}
+\L{\LB{}\Tab{8}{\}_\K{while}(\V{idummy}_\>_0);}}
+\L{\LB{______\K{if}_(\V{idummy}_==_\-1)_\V{exit}(0);}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* seems to be needed to clear the keyboard buffer \*\1\CE{}}}
+\L{\LB{______\V{scanf}(\S{}\"\%c\"\SE{},\&\V{cdummy});}}
+\L{\LB{}}
+\L{\LB{______\V{fp}_=_\V{fopen}(\V{outfile},\S{}\"w+\"\SE{});}}
+\L{\LB{\C{}\1\* make header for table \*\1\CE{}}}
+\L{\LB{______\V{printf}(\S{}\"__Router_____Rinner____MassInner___x\2n\"\SE{});}}
+\L{\LB{______\V{fprintf}(\V{fp},\S{}\"Router,Rinner,MassInner,x\2n\"\SE{});}}
+\L{\LB{______\K{for}_(\V{i}=0;\V{i}\<\V{NRadiusSteps};\V{i}++)}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{findw}(\V{RadiusStart}+}}
+\L{\LB{}\Tab{16}{(\K{double})\V{i}\1(\K{double})(\V{NRadiusSteps}\-1)\*(\V{RadiusEnd}\-\V{RadiusStart}));}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{______\V{fclose}(\V{fp});}}
+\L{\LB{______\V{printf}(\S{}\"[Return]_to_continue\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%c\"\SE{},\&\V{cdummy});}}
+\L{\LB{____\}_\K{while}(1);}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Ask the user for model parameters: \*\1\CE{}}}
+\L{\LB{\C{}\1\* mass,luminosity \*\1\CE{}}}
+\L{\LB{\C{}\1\* Also let the user decide on radii to make envelope for: \*\1\CE{}}}
+\L{\LB{\C{}\1\* RadiusStart,RadiusEnd,NRadiusSteps \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* input to init(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*   \*RadiusStart,\*RadiusEnd,\*NRadiusSteps \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* output by init(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*    -1 user chose stop \*\1\CE{}}}
+\L{\LB{\C{}\1\*     0 user chose start model \*\1\CE{}}}
+\L{\LB{\C{}\1\* other user changed some value \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* global variables changable by init(): \*\1\CE{}}}
+\L{\LB{\C{}\1\* M,L \*\1\CE{}}}
+\L{\LB{\K{int}_\V{menu}(\K{double}_\*\V{RadiusStart},\K{double}_\*\V{RadiusEnd},\K{int}_\*\V{NRadiusSteps})}}
+\L{\LB{\{}}
+\L{\LB{\C{}\1\* variable to hold user input on menu \*\1\CE{}}}
+\L{\LB{__\K{int}_\V{input};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* variable to hold value entered by user \*\1\CE{}}}
+\L{\LB{__\K{float}_\V{fdummy};}}
+\L{\LB{}}
+\L{\LB{__\V{printf}(\S{}\"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\2n\"\SE{});}}
+\L{\LB{__\V{printf}(\S{}\"1)_mass_in_solarmass:_\%f\2n\"\SE{},\V{M});}}
+\L{\LB{__\V{printf}(\S{}\"2)_luminosity_in_solarluminosity:_\%f\2n\"\SE{},\V{L});}}
+\L{\LB{__\V{printf}(\S{}\"3)_Smallest_Radius:_\%f\2n\"\SE{},\*\V{RadiusStart});}}
+\L{\LB{__\V{printf}(\S{}\"4)_Largest_Radius:_\%f\2n\"\SE{},\*\V{RadiusEnd});}}
+\L{\LB{__\V{printf}(\S{}\"5)_Number_of_Radii:_\%d\2n\"\SE{},\*\V{NRadiusSteps});}}
+\L{\LB{__\V{printf}(\S{}\"6)_Output_filename:_\%s\2n\"\SE{},\V{outfile});}}
+\L{\LB{__\V{printf}(\S{}\"9)_start_model\2n\"\SE{});}}
+\L{\LB{__\V{printf}(\S{}\"0)_EXIT\2n\"\SE{});}}
+\L{\LB{__\V{printf}(\S{}\"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\2n\"\SE{});}}
+\L{\LB{__\V{printf}(\S{}\"Choice:_\"\SE{});}}
+\L{\LB{__\V{scanf}(\S{}\"\%d\"\SE{},\&\V{input});__}}
+\L{\LB{}}
+\L{\LB{__\K{switch}(\V{input})}}
+\L{\LB{__\{}}
+\L{\LB{__\K{case}_9:_\K{return}(0);}}
+\L{\LB{__\K{case}_1:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"mass_in_solarmass:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\V{M}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(1);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_2:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"luminosity_in_solarluminosity:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\V{L}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(2);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_3:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"Smallest_Radius:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\*\V{RadiusStart}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(3);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_4:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"Largest_Radius:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\*\V{RadiusEnd}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(4);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_5:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"Number_of_Radii:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%d\"\SE{},\&\*\V{NRadiusSteps});}}
+\L{\LB{______\K{return}(5);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_6:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"output_filename:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%s\"\SE{},\&\V{outfile});}}
+\L{\LB{______\K{return}(6);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_0:}}
+\L{\LB{____\{}}
+\L{\LB{______\K{return}(\-1);}}
+\L{\LB{____\}}}
+\L{\LB{__\}}}
+\L{\LB{__\K{return}(0);}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* findw(R) \*\1\CE{}}}
+\L{\LB{\C{}\1\* procedure that takes a radius(R) and searches for the w \*\1\CE{}}}
+\L{\LB{\C{}\1\* that makes the electron pressure on the inner edge of the envelope \*\1\CE{}}}
+\L{\LB{\C{}\1\* equal to the degenerate pressure until the w differs less than \*\1\CE{}}}
+\L{\LB{\C{}\1\* MinWstep from the true w. \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* input to find(radius): \*\1\CE{}}}
+\L{\LB{\C{}\1\*   outer radius of the dwarf \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\K{void}_\V{findw}(\K{double}_\V{R})}}
+\L{\LB{\{}}
+\L{\LB{\C{}\1\* w holds the value at which we evaluate Pe and Pd \*\1\CE{}}}
+\L{\LB{\C{}\1\* wstep is the amount we change w each loop to get a better w \*\1\CE{}}}
+\L{\LB{\C{}\1\* alpha holds value of opacity parameter \*\1\CE{}}}
+\L{\LB{\C{}\1\* radius,mass,x hold the radius,mass and x for the final w value \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{__\K{double}_\V{w},\V{wstep},\V{alpha},\V{beta},\V{radius},\V{mass},\V{x};}}
+\L{\LB{}}
+\L{\LB{__\V{alpha}_=_6.2716e\-3\*\V{pow}(\V{mu}\*\V{pow}(\V{L},2e0)\*\V{R}\1\V{pow}(\V{M},3e0),1e0\14e0);}}
+\L{\LB{__\V{beta}_=_1.44029e\-3\*\V{mu}\*\V{M}\1\V{R};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* we assume right value of w is between 0 ans 2 \*\1\CE{}}}
+\L{\LB{\C{}\1\* set w=wstep=1 \*\1\CE{}}}
+\L{\LB{\C{}\1\* 1 make wstep half of wstep \*\1\CE{}}}
+\L{\LB{\C{}\1\* 2 if Pe(w) \< Pd(w) then decrease w by wstep else increase by wstep  \*\1\CE{}}}
+\L{\LB{\C{}\1\* repeat 1 and 2 if wstep \> MinWstep \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* start in between 0 and 2 \*\1\CE{}}}
+\L{\LB{__\V{w}_=_\V{wstep}_=_1e0;}}
+\L{\LB{_}}
+\L{\LB{__\K{do}}}
+\L{\LB{____\{}}
+\L{\LB{______\V{wstep}_\1=_2e0;}}
+\L{\LB{______(\V{Pd}(\V{alpha},\V{beta},\V{w})_\>_\V{Pe}(\V{alpha},\V{beta},\V{w}))_?__(\V{w}_\-=_\V{wstep})_:_(\V{w}_+=_\V{wstep});}}
+\L{\LB{____\}_\K{while}_(\V{wstep}_\>_\V{MinWstep});}}
+\L{\LB{}}
+\L{\LB{__\V{radius}_=_\V{RADIUS}(\V{alpha},\V{w},\V{R});}}
+\L{\LB{__\V{mass}_=_\V{MASS}(\V{alpha},\V{w});}}
+\L{\LB{__\V{x}_=_\V{X}(\V{alpha},\V{beta},\V{w});}}
+\L{\LB{__\V{fprintf}(\V{fp},\S{}\"\%e_\%e_\%e_\%e\2n\"\SE{},}}
+\L{\LB{}\Tab{8}{_\V{R},\V{radius},\V{mass},\V{x});}}
+\L{\LB{__\V{printf}(\S{}\"\%f_\%e_\%e_\%e\2n\"\SE{},}}
+\L{\LB{}\Tab{8}{_\V{R},\V{radius},\V{mass},\V{x});}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Pe(a,b,w) \*\1\CE{}}}
+\L{\LB{\C{}\1\* Returns value of the electron pressure for given a,b,w \*\1\CE{}}}
+\L{\LB{\K{double}_\V{Pe}(\K{double}_\V{a},\K{double}_\V{b},\K{double}_\V{w})}}
+\L{\LB{\{}}
+\L{\LB{__\K{return}(124e0\115e0\*\V{pow}(\V{b},4e0)\*\V{mu}\1\V{a}\1\V{mue}\*\V{pow}(\V{w},9e0)\*\V{pow}(\V{w}+\V{a},8e0));}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Pd(a,b,w) \*\1\CE{}}}
+\L{\LB{\C{}\1\* Returns value of the degenerate pressure for given a,b,w \*\1\CE{}}}
+\L{\LB{\K{double}_\V{Pd}(\K{double}_\V{a},\K{double}_\V{b},\K{double}_\V{w})}}
+\L{\LB{\{}}
+\L{\LB{__\K{double}_\V{x};}}
+\L{\LB{__\V{x}_=_\V{X}(\V{a},\V{b},\V{w});}}
+\L{\LB{__\K{return}(\V{x}\*(2e0\*\V{x}\*\V{x}\-3e0)\*\V{sqrt}(\V{x}\*\V{x}+1e0)+3e0\*\V{log}(\V{x}+\V{sqrt}(\V{x}\*\V{x}+1e0)));}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* MASS(a,w) \*\1\CE{}}}
+\L{\LB{\C{}\1\* returns interior-mass for a given a,w \*\1\CE{}}}
+\L{\LB{\C{}\1\* uses M the total starmass \*\1\CE{}}}
+\L{\LB{\K{double}_\V{MASS}(\K{double}_\V{a},\K{double}_\V{w})}}
+\L{\LB{\{}}
+\L{\LB{__\V{const}_\K{double}_\V{sqrt2}_=_1.41421356237309504880;}}
+\L{\LB{__\K{double}_\V{f},\V{w4},\V{w4w41};}}
+\L{\LB{}}
+\L{\LB{__\V{w4}_=_\V{pow}(\V{w},4e0);}}
+\L{\LB{__\V{w4w41}_=_\V{w4}\1(\V{w4}+1);}}
+\L{\LB{}}
+\L{\LB{__\V{f}_=__195e0_\1_32e0\*\V{w}}}
+\L{\LB{_____\-_195e0_\1_128e0_\*_\V{sqrt2}_}}
+\L{\LB{_____\*_(_\V{log}(_\V{w}\*\V{w}_+_\V{w}\*\V{sqrt2}_+_1e0_)_+_2e0_\*_\V{atan}((\V{w}\*\V{w}+\V{sqrt}(1+\V{w4})\-1e0)\1\V{w}\1\V{sqrt2}))}}
+\L{\LB{_____+_(195e0\1256e0\*\V{sqrt2}\-253e0\151e0\*\V{a})\*\V{log}(\V{w4}+1)}}
+\L{\LB{_____+_172e0\151e0\*\V{a}\*\V{pow}(\V{w4w41},4e0)}}
+\L{\LB{_____\-_(\V{w}\13e0_\-_253e0\1153e0\*\V{a})\*\V{pow}(\V{w4w41},3e0)}}
+\L{\LB{_____\-_(13e0\124e0\*\V{w}\-253e0\1102e0\*\V{a})\*\V{w4w41}\*\V{w4w41}}}
+\L{\LB{_____\-_(117e0\196e0\*\V{w}\-253e0\151e0\*\V{a})\*\V{w4w41};}}
+\L{\LB{}}
+\L{\LB{__\K{return}(\V{M}\*(1e0\-.0101243\*\V{pow}(\V{mu},4e0)\*\V{M}\*\V{M}\*\V{f}\1\V{a}));}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* RADIUS(a,w,R) \*\1\CE{}}}
+\L{\LB{\C{}\1\* returns radius for a given a,w \*\1\CE{}}}
+\L{\LB{\C{}\1\* uses R, the starradius \*\1\CE{}}}
+\L{\LB{\K{double}_\V{RADIUS}(\K{double}_\V{a},\K{double}_\V{w},\K{double}_\V{R})}}
+\L{\LB{\{}}
+\L{\LB{__\K{return}(\V{R}\1(\V{pow}(\V{w}+\V{a},3e0)\*(\V{w}+19e0\151e0\*\V{a})_\-_19e0\151e0\*\V{pow}(\V{a},4e0)_+_1e0));}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* X(a,b,w) \*\1\CE{}}}
+\L{\LB{\C{}\1\* returns degeneracy parameter for a given a,b,w \*\1\CE{}}}
+\L{\LB{\K{double}_\V{X}(\K{double}_\V{a},\K{double}_\V{b},\K{double}_\V{w})}}
+\L{\LB{\{}}
+\L{\LB{__\K{return}(\V{pow}(31e0\*\V{pi}\160e0\*\V{mu}\1\V{a}\1\V{mue},1e0\13e0)\*\V{b}\*\V{pow}(\V{w},7e0\13e0)\*\V{pow}(\V{w}+\V{a},2e0));}}
+\L{\LB{\}}}
+\L{\LB{}}
+\end{lgrind}
+\end{document}

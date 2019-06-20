@@ -1,0 +1,579 @@
+\documentstyle[lgrind,fancyhead]{article}
+\pagestyle{plain}
+\lhead[\fancyplain{}{\bf\thepage}]{\fancyplain{}{\bf wdcore.c}}
+\rhead[\fancyplain{}{\bf\thepage}]{\fancyplain{}{\bf wdcore.c}}
+\cfoot{}
+\begin{document}
+\begin{lgrind}
+\File{wdcore.c},{11:22},{Jan 14 1998}
+\L{\LB{\K{\#include}_\<\V{stdio}.\V{h}\>}}
+\L{\LB{\K{\#include}_\<\V{math}.\V{h}\>}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* maximum number of array points \*\1\CE{}}}
+\L{\LB{\K{\#define}_\V{Ncoremax}_1000}}
+\L{\LB{\C{}\1\* This determines the size of the mass steps to try in the \*\1\CE{}}}
+\L{\LB{\C{}\1\* runge kutta integration. \*\1\CE{}}}
+\L{\LB{\C{}\1\* Each mass step is initially mass\1InitialMSteps \*\1\CE{}}}
+\L{\LB{\C{}\1\* Could be much smaller then 200 but this high number gives nicer plots \*\1\CE{}}}
+\L{\LB{\K{\#define}_\V{InitialMSteps}_2e2}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* If we need a massstep smaller than MinimalMstep to get the \*\1\CE{}}}
+\L{\LB{\C{}\1\* required aquiracy stop the integration \*\1\CE{}}}
+\L{\LB{\K{\#define}_\V{MinimalMStep}_1e\-20}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* MaxRelErrorQ determines how accurate we want each core-integration to \*\1\CE{}}}
+\L{\LB{\C{}\1\* approach the requested density at the outer edge of the core \*\1\CE{}_}}
+\L{\LB{\K{\#define}_\V{MaxRelErrorQ}_1e\-8_}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* MaxExponent gives upperlevel to values allowed to be fed into exp() \*\1\CE{}}}
+\L{\LB{\K{\#define}_\V{MaxExponent}_1e2}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Prototype declarations of all functions used by the program \*\1\CE{}}}
+\L{\LB{\K{void}_\V{init}();}}
+\L{\LB{\K{int}_\V{menu}(\K{double}_\*\V{rhoc});}}
+\L{\LB{\K{int}_\V{findrhoc}(\K{double}_\V{rhocstart});}}
+\L{\LB{\K{int}_\V{intcore}(\K{double}_\V{rhoc});}}
+\L{\LB{\K{int}_\V{rk5}(\K{int}_\V{j});}}
+\L{\LB{\K{double}_\V{dsdm}(\K{double}_\V{ls},\K{double}_\V{lq});}}
+\L{\LB{\K{double}_\V{dqdm}(\K{double}_\V{lm},\K{double}_\V{ls},\K{double}_\V{lq});}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Some constants used by the program \*\1\CE{}}}
+\L{\LB{\V{const}_\K{double}_\V{c}______=2.99791e8,_\C{}\1\* m\1s}}
+\L{\LB{_____________pi     =3.14159,}}
+\L{\LB{_____________me     =9.10953e-31, \1\* kg \*\1\CE{}_}}
+\L{\LB{_____________\V{mp}_____=1.67265e\-27,_\C{}\1\* kg \*\1\CE{}}}
+\L{\LB{_____________\V{planck}_=6.6237e\-34,_\C{}\1\* Js \*\1\CE{}}}
+\L{\LB{_____________\V{k}______=1.38024e\-23,_\C{}\1\* J\1K \*\1\CE{}}}
+\L{\LB{_____________\V{G}______=6.668e\-11,_\C{}\1\* N m\^2\1kg\^2 \*\1\CE{}}}
+\L{\LB{_____________\V{Lsun}___=3.86e26,_\C{}\1\* W \*\1\CE{}}}
+\L{\LB{_____________\V{Msun}___=1.991e30,_\C{}\1\* kg \*\1\CE{}}}
+\L{\LB{_____________\V{Rsun}___=6.960e8,_\C{}\1\* m \*\1\CE{}}}
+\L{\LB{_____________\V{mue}____=2e0,}}
+\L{\LB{_____________\V{mu}_____=1.3e0;}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* More constants used by the program. They are set in the function init \*\1\CE{}}}
+\L{\LB{\K{double}_\V{A},\V{B},\V{X},\V{Y};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* These variables hold the values of the model we are looking for: \*\1\CE{}}}
+\L{\LB{\C{}\1\* ta   =  absolute error tolerated in one integration step. \*\1\CE{}}}
+\L{\LB{\C{}\1\* tr   =  relative error tolerated in one integration step. \*\1\CE{}}}
+\L{\LB{\C{}\1\* MaxRelErrorM determines how accurate the final coremass should compare \*\1\CE{}}}
+\L{\LB{\C{}\1\* to the requested coremass \*\1\CE{}}}
+\L{\LB{\C{}\1\* mass =  requested mass of the core. \*\1\CE{}}}
+\L{\LB{\C{}\1\* x    =  requested value of the degeneracy parameter at the outside \*\1\CE{}}}
+\L{\LB{\C{}\1\*         of the core. \*\1\CE{}}}
+\L{\LB{\C{}\1\* rhocfinal = value of rhoc chosen to get satisfactory core model \*\1\CE{}}}
+\L{\LB{\C{}\1\* They are set to some default values. \*\1\CE{}}}
+\L{\LB{\K{double}_\V{ta}_=_0.03,}}
+\L{\LB{_______\V{tr}_=_1.2e\-2,}}
+\L{\LB{_______\V{MaxRelErrorM}=1e\-6,}}
+\L{\LB{_______\V{mass}_=_7.795353,_\C{}\1\* (= 1.053\*Msun\1Y) \*\1\CE{}}}
+\L{\LB{_______\V{x}____=_.193369,}}
+\L{\LB{_______\V{finalrhoc}_=_0e0;}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* These arrays store the integrated values of the mass,density and radius \*\1\CE{}}}
+\L{\LB{\K{double}_\V{m}[\V{Ncoremax}],\V{q}[\V{Ncoremax}],\V{s}[\V{Ncoremax}];}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* These arrays store the integration-errors of density and radius \*\1\CE{}}}
+\L{\LB{\K{double}_\V{qerror}[\V{Ncoremax}],\V{serror}[\V{Ncoremax}];}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* flag indicating that if set an exponent that was too big was \*\1\CE{}}}
+\L{\LB{\C{}\1\* used in one of the structure equations (dsdm,dqdm) \*\1\CE{}}}
+\L{\LB{\K{int}_\V{dfdmwarn};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* name of file to use for output \*\1\CE{}}}
+\L{\LB{\K{char}_\V{outfile}[40]_=_\S{}\"wdcore.dat\"\SE{};}}
+\L{\LB{}}
+\L{\LB{\K{void}_\V{main}()}}
+\L{\LB{\{}}
+\L{\LB{\C{}\1\* pointer to file to hold output \*\1\CE{}}}
+\L{\LB{__\V{FILE}_\*\V{fp};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* IOuter will receive index of the m[\,],q[\,] and s[\,] that contain the border \*\1\CE{}}}
+\L{\LB{\C{}\1\* of the model that has the right mass and outside density \*\1\CE{}_}}
+\L{\LB{\C{}\1\* idummy is a dummy variable to hold the choice made in the menu \*\1\CE{}}}
+\L{\LB{__\K{int}_\V{iOuter},\V{idummy},\V{i};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* dummy variable to hold user responses to questions \*\1\CE{}}}
+\L{\LB{\C{}\1\* we are not really interested in their value \*\1\CE{}}}
+\L{\LB{__\K{char}_\V{cdummy};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* rhoc hold the initial guess for the central density \*\1\CE{}}}
+\L{\LB{__\K{double}_\V{rhoc}_=_1e9;}}
+\L{\LB{}}
+\L{\LB{\C{}\1\*  just set some constant expressions, and set some variables to zero \*\1\CE{}}}
+\L{\LB{__\V{init}();}}
+\L{\LB{__}}
+\L{\LB{__\K{do}_\C{}\1\* while (1) =\> repeat endlessly \*\1\CE{}}}
+\L{\LB{____\{}}
+\L{\LB{____}}
+\L{\LB{\C{}\1\*  menu of choices \*\1\CE{}}}
+\L{\LB{______\K{do}_}}
+\L{\LB{}\Tab{8}{\{\V{idummy}_=_\V{menu}(\&\V{rhoc});\}_\K{while}(\V{idummy}_\>_0);}}
+\L{\LB{______\K{if}_(\V{idummy}_==_\-1)_\V{exit}(0);}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* seems to be needed to clear the keyboard buffer \*\1\CE{}}}
+\L{\LB{______\V{scanf}(\S{}\"\%c\"\SE{},\&\V{cdummy});}}
+\L{\LB{}}
+\L{\LB{\C{}\1\*  Make model with right mass and x by looking for the right rhoc \*\1\CE{}}}
+\L{\LB{______\V{iOuter}_=_\V{findrhoc}(\V{rhoc});}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* output results \*\1\CE{}}}
+\L{\LB{______\V{fp}_=_\V{fopen}(\V{outfile},\S{}\"w+\"\SE{});}}
+\L{\LB{______\V{fprintf}(\V{fp},\S{}\"central_density:_\%e\2n\"\SE{},\V{finalrhoc});}}
+\L{\LB{______\V{fprintf}(\V{fp},\S{}\"number,mass,radius,density,s\-error,q\-error\2n\"\SE{});}}
+\L{\LB{}}
+\L{\LB{______\K{for}(\V{i}=0;\V{i}\<=\V{iOuter};\V{i}++)}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{fprintf}(\V{fp},\S{}\"\%d_\%e_\%e_\%e_\%e_\%e\2n\"\SE{},_\C{}\1\* write to the file \*\1\CE{}}}
+\L{\LB{}\Tab{16}{__\V{i},}}
+\L{\LB{}\Tab{16}{__\V{m}[\V{i}]\*\V{Y}\1\V{Msun},}}
+\L{\LB{}\Tab{16}{__\V{exp}(\V{s}[\V{i}])\*\V{X}\1\V{Rsun},}}
+\L{\LB{}\Tab{16}{__\V{exp}(\V{q}[\V{i}])\*\V{B},}}
+\L{\LB{}\Tab{16}{__\V{serror}[\V{i}],}}
+\L{\LB{}\Tab{16}{__\V{qerror}[\V{i}]);}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{______\V{fclose}(\V{fp});}}
+\L{\LB{______\V{printf}(\S{}\"[Return]_to_continue\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%c\"\SE{},\&\V{cdummy});}}
+\L{\LB{____\}_\K{while}(1);}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Set the additional constants A,B,X,Y. Set dfdmwarn,m[\,],q[\,],s[\,] \*\1\CE{}}}
+\L{\LB{\C{}\1\* and qerror[\,],serror[\,]  to 0 \*\1\CE{}}}
+\L{\LB{\K{void}_\V{init}()}}
+\L{\LB{\{}}
+\L{\LB{__\K{int}_\V{j};}}
+\L{\LB{__\V{A}______=6.002608e21;}}
+\L{\LB{__\V{B}______=9.810486e8\*\V{mue};}}
+\L{\LB{__\V{X}______=4.448136e6\1\V{mue};}}
+\L{\LB{__\V{Y}______=1.075781e30\1(\V{mue}\*\V{mue});}}
+\L{\LB{__\V{dfdmwarn}_=_0;}}
+\L{\LB{__\K{for}_(\V{j}=0;\V{j}\<\V{Ncoremax};\V{j}++)_\V{s}[\V{j}]=\V{q}[\V{j}]=\V{m}[\V{j}]=\V{qerror}[\V{j}]=\V{serror}[\V{j}]=0e0;}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* Ask the user for model parameters: \*\1\CE{}}}
+\L{\LB{\C{}\1\* mass,x,ta,tr,MaxRelErrorM \*\1\CE{}}}
+\L{\LB{\C{}\1\* Also let the user decide on initial value of rhoc to try \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* input to init(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*   \*rhoc  \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* output by init(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*    -1 user chose stop \*\1\CE{}}}
+\L{\LB{\C{}\1\*     0 user chose start model \*\1\CE{}}}
+\L{\LB{\C{}\1\* other user changed some value \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* global variables changable by init(): \*\1\CE{}}}
+\L{\LB{\C{}\1\* mass,x,tr,ta,MaxRelErrorM,outfile \*\1\CE{}}}
+\L{\LB{\K{int}_\V{menu}(\K{double}_\*\V{rhoc})}}
+\L{\LB{\{}}
+\L{\LB{\C{}\1\* variable to hold user input on menu \*\1\CE{}}}
+\L{\LB{__\K{int}_\V{input};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* variable to hold value entered by user \*\1\CE{}}}
+\L{\LB{__\K{float}_\V{fdummy};}}
+\L{\LB{}}
+\L{\LB{__\V{printf}(\S{}\"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\2n\"\SE{});}}
+\L{\LB{__\V{printf}(\S{}\"1)_coremass_in_solarmass:_\%f\2n\"\SE{},\V{mass}\*\V{Y}\1\V{Msun});}}
+\L{\LB{__\V{printf}(\S{}\"2)_x_at_the_outside_of_the_core:_\%f\2n\"\SE{},\V{x});}}
+\L{\LB{__\V{printf}(\S{}\"3)_initial_value_of_central_density(kg\1m\*\*3):_\%e\2n\"\SE{},\*\V{rhoc});}}
+\L{\LB{__\V{printf}(\S{}\"4)_maximum_absolute_error_in_integration_step:_\%f\2n\"\SE{},\V{ta});}}
+\L{\LB{__\V{printf}(\S{}\"5)_maximum_relative_error_in_integration_step:_\%f\2n\"\SE{},\V{tr});}}
+\L{\LB{__\V{printf}(\S{}\"6)_maximum_relative_error_in_mass:_\%e\2n\"\SE{},\V{MaxRelErrorM});}}
+\L{\LB{__\V{printf}(\S{}\"7)_output_filename:_\%s\2n\"\SE{},\V{outfile});}}
+\L{\LB{__\V{printf}(\S{}\"9)_start_model\2n\"\SE{});}}
+\L{\LB{__\V{printf}(\S{}\"0)_EXIT\2n\"\SE{});}}
+\L{\LB{__\V{printf}(\S{}\"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\2n\"\SE{});}}
+\L{\LB{__\V{printf}(\S{}\"Choice:_\"\SE{});}}
+\L{\LB{__\V{scanf}(\S{}\"\%d\"\SE{},\&\V{input});}}
+\L{\LB{}}
+\L{\LB{__\K{switch}(\V{input})}}
+\L{\LB{__\{}}
+\L{\LB{__\K{case}_9:_\K{return}(0);}}
+\L{\LB{__\K{case}_1:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"coremass_in_solarmass:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\V{mass}_=_\V{Msun}\*(\K{double})\V{fdummy}\1\V{Y};}}
+\L{\LB{______\K{return}(1);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_2:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"x_at_the_outside_of_the_core:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\V{x}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(2);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_3:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"initial_value_of_central_density(kg\1m\*\*3):\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\*\V{rhoc}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(3);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_4:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"maximum_absolute_error_in_integration_step:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\V{ta}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(4);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_5:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"maximum_relative_error_in_integration_step:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\V{tr}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(5);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_6:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"maximum_relative_error_in_mass:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%f\"\SE{},\&\V{fdummy});}}
+\L{\LB{______\V{MaxRelErrorM}_=_(\K{double})\V{fdummy};}}
+\L{\LB{______\K{return}(5);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_7:}}
+\L{\LB{____\{}}
+\L{\LB{______\V{printf}(\S{}\"output_filename:\2n\"\SE{});}}
+\L{\LB{______\V{scanf}(\S{}\"\%s\"\SE{},\&\V{outfile});}}
+\L{\LB{______\K{return}(6);}}
+\L{\LB{____\}}}
+\L{\LB{__\K{case}_0:}}
+\L{\LB{____\{}}
+\L{\LB{______\K{return}(\-1);}}
+\L{\LB{____\}}}
+\L{\LB{__\}}}
+\L{\LB{__\K{return}(0);}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* findrhoc(rhocstart) \*\1\CE{}}}
+\L{\LB{\C{}\1\* Function that takes a central density(rhoc) and calculates a model  \*\1\CE{}}}
+\L{\LB{\C{}\1\* coremass. Next it adjusts the rhoc, to make the coremass match better  \*\1\CE{}}}
+\L{\LB{\C{}\1\* with requested mass, until the difference between those is less than  \*\1\CE{}}}
+\L{\LB{\C{}\1\* the tolerated error MaxRelErrorM. \*\1\CE{}}}
+\L{\LB{\C{}\1\* input to findrhoc(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*   rhocstart first guess for rhoc  \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* output by findrhoc(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*    index where the integrated values of m,q and s can be found \*\1\CE{}}}
+\L{\LB{\C{}\1\*    for the total core. \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\K{int}_\V{findrhoc}(\K{double}_\V{rhocstart})}}
+\L{\LB{\{}}
+\L{\LB{\C{}\1\* rhoc: central density to do integration for. \*\1\CE{}}}
+\L{\LB{\C{}\1\* rhoc0: previous value of rhoc used. \*\1\CE{}}}
+\L{\LB{\C{}\1\* rhocstep: amount to change rhoc to get to new rhoc, \*\1\CE{}}}
+\L{\LB{\C{}\1\*   so rhocstep=rhoc-rhoc0 \*\1\CE{}}}
+\L{\LB{\C{}\1\* mm: resulting coremass \*\1\CE{}}}
+\L{\LB{__\K{double}_\V{rhoc},\V{rhoc0},\V{rhocstep},\V{mm};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* index where the integrated values of m,q and s can be found \*\1\CE{}}}
+\L{\LB{__\K{int}_\V{iOuter};}}
+\L{\LB{__}}
+\L{\LB{__\V{rhoc0}_=_0e0;}}
+\L{\LB{__\V{rhoc}_=_\V{rhocstart};}}
+\L{\LB{__\V{rhocstep}_=_\V{rhoc};}}
+\L{\LB{__}}
+\L{\LB{__\K{do}_\C{}\1\* first increase rhoc until mass is bigger than requested \*\1\CE{}}}
+\L{\LB{____\{}}
+\L{\LB{______\C{}\1\* make a model with the current value of rhoc \*\1\CE{}}}
+\L{\LB{______\V{iOuter}_=_\V{intcore}(\V{rhoc});_}}
+\L{\LB{}}
+\L{\LB{______\C{}\1\* get the resulting mass \*\1\CE{}}}
+\L{\LB{______\V{mm}_=_\V{m}[\V{iOuter}];}}
+\L{\LB{}}
+\L{\LB{______\C{}\1\* if we accidently run into a good solution now we can stop \*\1\CE{}}}
+\L{\LB{______\K{if}_(\V{fabs}(\V{mm}\1\V{mass}\-1e0)_\<_\V{MaxRelErrorM})_\K{return}(\V{iOuter});}}
+\L{\LB{}}
+\L{\LB{______\C{}\1\* determine better rhoc \*\1\CE{}_}}
+\L{\LB{______\K{if}_(\V{mass}_\>_\V{mm})}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\C{}\1\* far from the requested mass so probably rhoc is  \*\1\CE{}}}
+\L{\LB{}\Tab{8}{__\C{}\1\* also far off make a big step thus \*\1\CE{}}}
+\L{\LB{____}\Tab{8}{__\K{if}_(\V{mass}\1\V{mm}_\>_2e0)}}
+\L{\LB{}\Tab{8}{____\{}}
+\L{\LB{____}\Tab{8}{______\V{printf}(\S{}\"nowhere_near_\%e\2n\"\SE{},\V{mass}\1\V{mm});}}
+\L{\LB{____}\Tab{8}{______\V{rhoc0}_=_\V{rhoc};}}
+\L{\LB{}}
+\L{\LB{}\Tab{8}{______\C{}\1\* assume mass = constant\*rhoc \*\1\CE{}}}
+\L{\LB{}\Tab{8}{______\C{}\1\* then real rhoc = mass\1mm\*rhoc  \*\1\CE{}}}
+\L{\LB{____}\Tab{8}{______\V{rhoc}_=_\V{mass}\1\V{mm}\*\V{rhoc};}}
+\L{\LB{____}\Tab{8}{______\V{rhocstep}_=_\V{rhoc}_\-_\V{rhoc0};}}
+\L{\LB{____}\Tab{8}{____\}}}
+\L{\LB{____}\Tab{8}{__\K{else}}}
+\L{\LB{____}\Tab{8}{____\{}}
+\L{\LB{____}\Tab{8}{______\V{rhoc0}_=_\V{rhoc};}}
+\L{\LB{____}\Tab{8}{______\V{rhoc}_+=_\V{rhocstep};}}
+\L{\LB{____}\Tab{8}{____\}}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{____\}_\K{while}_(_\V{mass}_\>_\V{mm}_);_}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* we found a lowerlimit of the rhoc (rhoc0) and an upperlimit rhoc \*\1\CE{}}}
+\L{\LB{\C{}\1\* now make models in between until the difference between the model mass \*\1\CE{}}}
+\L{\LB{\C{}\1\* and the requested mass is smaller than MaxRelErrorM \*\1\CE{}}}
+\L{\LB{\C{}\1\* we do this with an halfstep refinement methode for rhoc: \*\1\CE{}}}
+\L{\LB{\C{}\1\* 1 make rhocstep half of previous rhocstep \*\1\CE{}}}
+\L{\LB{\C{}\1\* 2 if last modelmass was too low increase rhoc with rhocstep \*\1\CE{}}}
+\L{\LB{\C{}\1\* else decrease rhoc with rhocstep \*\1\CE{}}}
+\L{\LB{\C{}\1\* 3 calculate a modelcoremass with this new rhoc \*\1\CE{}}}
+\L{\LB{\C{}\1\* repeat 1,2 and 3 until error-condition satified \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{}}
+\L{\LB{__\V{rhocstep}_\1=_2e0;}}
+\L{\LB{__\V{rhoc}_\-=_\V{rhocstep};}}
+\L{\LB{__\K{do}}}
+\L{\LB{____\{}}
+\L{\LB{______\V{iOuter}_=_\V{intcore}(\V{rhoc});}}
+\L{\LB{______\V{mm}_=_\V{m}[\V{iOuter}];}}
+\L{\LB{}}
+\L{\LB{______\V{rhocstep}_\1=_2e0;}}
+\L{\LB{______\K{if}_(_\V{mm}_\>_\V{mass})}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{rhoc}_\-=_\V{rhocstep};}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{______\K{else}}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{rhoc}_+=_\V{rhocstep};}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{____\}_\K{while}_(\V{fabs}(\V{mm}\1\V{mass}\-1e0)_\>_\V{MaxRelErrorM});}}
+\L{\LB{__\K{return}(\V{iOuter});}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* intcore(lrhoc) \*\1\CE{}}}
+\L{\LB{\C{}\1\* This function will given a central density integrate the structure \*\1\CE{}}}
+\L{\LB{\C{}\1\* equations for the density and radius until the density is close to \*\1\CE{}}}
+\L{\LB{\C{}\1\* the requested density rho(x) \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* input to intcore(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*   lrhoc: central density to do the integration for  \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* output by intcore(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*    index where the integrated values of m,q and s can be found \*\1\CE{}}}
+\L{\LB{\C{}\1\*    for the total core. \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* global variables changable by intcore(): \*\1\CE{}}}
+\L{\LB{\C{}\1\* m[\,],q[\,],s[\,] \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\K{int}_\V{intcore}(\K{double}_\V{lrhoc})}}
+\L{\LB{\{}}
+\L{\LB{__\C{}\1\* i: index to array element to do integration for \*\1\CE{}}}
+\L{\LB{__\C{}\1\* rk5failed: receives value from rk5 indicating accuracy was not reached \*\1\CE{}}}
+\L{\LB{__\K{int}_\V{i},\V{rk5failed};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* qend: density at the outside of the core \*\1\CE{}}}
+\L{\LB{\C{}\1\* mstep: stepsize we use when integrating from old value to new value \*\1\CE{}}}
+\L{\LB{__\K{double}_\V{qend},\V{mstep};}}
+\L{\LB{}}
+\L{\LB{__\V{mstep}_=_(\V{mass}\1\V{InitialMSteps});}}
+\L{\LB{__\V{qend}_=_3e0\*\V{log}(\V{x});}}
+\L{\LB{__\V{i}_=_1;}}
+\L{\LB{}}
+\L{\LB{\C{}\1\*   we put in for the start of the integration : \*\1\CE{}}}
+\L{\LB{\C{}\1\*   m= 1\11000000 of Msun, q = ln(lrhoc\1B) =\> r = (3\1(4\*pi) m\1lrhoc)\^1\13 \*\1\CE{}}}
+\L{\LB{\C{}\1\*   s = 1\13\*ln(3\1(4\*pi)\*m\1lrhoc) - ln(X) \*\1\CE{}}}
+\L{\LB{__\V{m}[0]_=_1e\-6\*\V{Msun}\1\V{Y};}}
+\L{\LB{__\V{q}[0]_=_\V{log}(\V{lrhoc}\1\V{B});}}
+\L{\LB{__\V{s}[0]_=_1e0\13e0\*\V{log}(3e0\1(4e0\*\V{pi})\*\V{m}[0]\*\V{Y}\1\V{lrhoc})\-\V{log}(\V{X});}}
+\L{\LB{}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* We set finalrhoc to lrhoc, if it does not get set again here \*\1\CE{}}}
+\L{\LB{\C{}\1\* it was indeed the final lrhoc ;-) \*\1\CE{}}}
+\L{\LB{__\V{finalrhoc}_=_\V{lrhoc};}}
+\L{\LB{}}
+\L{\LB{__\K{do}_\C{}\1\* increase mass until density is lower then the outside density qend \*\1\CE{}}}
+\L{\LB{____\{}}
+\L{\LB{______\V{m}[\V{i}]_=_\V{m}[\V{i}\-1]+\V{mstep};}}
+\L{\LB{______\V{rk5failed}_=_\V{rk5}(\V{i}\-1);}}
+\L{\LB{______\K{if}_(\V{rk5failed})_\C{}\1\* did not make the accuracy test so decrease stepsize\*\1\CE{}}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{mstep}_\1=_2e0;}}
+\L{\LB{}}
+\L{\LB{}\Tab{8}{__\K{if}_(\V{mstep}_\<_\V{MinimalMStep})_\C{}\1\* don\'t half mstep endlessly \*\1\CE{}}}
+\L{\LB{}\Tab{8}{____\{}}
+\L{\LB{}\Tab{8}{______\V{printf}(\S{}\"The_mass_step_has_become_too_small\2n\"\SE{});}}
+\L{\LB{}\Tab{8}{______\V{exit}(0);_}}
+\L{\LB{}\Tab{8}{____\}}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{______\K{else}__\C{}\1\* accurate enough next mass point \*\1\CE{}}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\C{}\1\* we accidently bumped into a good solution here,so stop \*\1\CE{}}}
+\L{\LB{}\Tab{8}{__\K{if}_(\V{fabs}(\V{q}[\V{i}]\1\V{qend}\-1e0)_\<_\V{MaxRelErrorQ})_\K{return}(\V{i});}}
+\L{\LB{}\Tab{8}{__\V{i}++;}}
+\L{\LB{}\Tab{8}{__\K{if}_(\V{i}_\>=_\V{Ncoremax})__\C{}\1\* more masspoints needed than allocated \*\1\CE{}}}
+\L{\LB{}\Tab{8}{____\{}}
+\L{\LB{}\Tab{8}{______\V{printf}(\S{}\"Couldn\'t_find_solution,_too_few_grid_points\2n\"\SE{});}}
+\L{\LB{}\Tab{8}{______\V{exit}(0);}}
+\L{\LB{}\Tab{8}{____\}}}
+\L{\LB{}\Tab{8}{__\V{mstep}_=_(\V{mass}\1\V{InitialMSteps});_\C{}\1\* make mstep big again \*\1\CE{}}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{____\}_\K{while}_(\V{exp}(\V{q}[\V{i}\-1])_\>_\V{exp}(\V{qend}));_\C{}\1\* stepped outside of core \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* we found the core edge between m[i-1] and m[i-2] \*\1\CE{}}}
+\L{\LB{\C{}\1\* now make models in between until the difference between the model density \*\1\CE{}}}
+\L{\LB{\C{}\1\* and the requested density (qend) is smaller than MaxRelErrorQ \*\1\CE{}}}
+\L{\LB{\C{}\1\* we do this with an halfstep refinement methode for m[i]: \*\1\CE{}}}
+\L{\LB{\C{}\1\* 1 make mstep half of previous mstep \*\1\CE{}}}
+\L{\LB{\C{}\1\* 2 if last density was too high increase m[i] with mstep \*\1\CE{}}}
+\L{\LB{\C{}\1\* else decrease m[i] with mstep \*\1\CE{}}}
+\L{\LB{\C{}\1\* 3 calculate a density with this new m[i] \*\1\CE{}}}
+\L{\LB{\C{}\1\* repeat 1,2 and 3 until error-condition satified \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{__\V{i}\-\-;}}
+\L{\LB{__\V{mstep}_=_\V{m}[\V{i}]_\-_\V{m}[\V{i}\-1];}}
+\L{\LB{__\K{do}_\C{}\1\* do halfstep procedure until error-condition satified \*\1\CE{}}}
+\L{\LB{____\{}\Tab{8}{__}}
+\L{\LB{______\V{mstep}_\1=_2e0;}}
+\L{\LB{______\K{if}_(\V{mstep}_\<_\V{MinimalMStep})__\C{}\1\* don\'t half mstep endlessly \*\1\CE{}}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{printf}(\S{}\"The_mass_step_has_become_too_small\2n\"\SE{});}}
+\L{\LB{}\Tab{8}{__\V{exit}(0);}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{______\K{if}_(\V{exp}(\V{q}[\V{i}])_\>_\V{exp}(\V{qend}))_}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{m}[\V{i}]_+=_\V{mstep};}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{______\K{else}}}
+\L{\LB{}\Tab{8}{\{}}
+\L{\LB{}\Tab{8}{__\V{m}[\V{i}]_\-=_\V{mstep};}}
+\L{\LB{}\Tab{8}{\}}}
+\L{\LB{______\V{rk5failed}_=_\V{rk5}(\V{i}\-1);}}
+\L{\LB{______\C{}\1\* we decreased mstep but now error has become bigger \*\1\CE{}}}
+\L{\LB{______\K{if}_(\V{rk5failed})_\V{printf}(\S{}\"something_stinks\"\SE{});}}
+\L{\LB{____\}_\K{while}_(\V{fabs}(\V{q}[\V{i}]\1\V{qend}\-1e0)_\>_\V{MaxRelErrorQ});}}
+\L{\LB{__\V{printf}(\S{}\"central_density:_\%e\2nmass:\%f_radius:\%e_density:\%e\2n\"\SE{},}}
+\L{\LB{}\Tab{8}{_\V{lrhoc},\V{m}[\V{i}]\*\V{Y}\1\V{Msun},\V{exp}(\V{s}[\V{i}])\*\V{X}\1\V{Rsun},\V{exp}(\V{q}[\V{i}])\*\V{B});}}
+\L{\LB{__\K{return}(\V{i});}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* rk5(j) \*\1\CE{}}}
+\L{\LB{\C{}\1\* This function will make 1 integration step for s and q \*\1\CE{}}}
+\L{\LB{\C{}\1\* from mass point m[j] to m[j+1] resulting in s[j+1] and q[j+1] \*\1\CE{}}}
+\L{\LB{\C{}\1\* it will also evaluate the error in these integrations \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* input to rk5(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*   j: index of m[\,],s[\,] and q[\,] values to start integration from \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* output by rk5(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*    boolean value indicating whether the requested accuracy prescription \*\1\CE{}}}
+\L{\LB{\C{}\1\*    has been violated \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* global variables changable by intcore(): \*\1\CE{}}}
+\L{\LB{\C{}\1\* q[j+1],s[j+1],qerror[j+1],serror[j+1] \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\K{int}_\V{rk5}(\K{int}_\V{j})}}
+\L{\LB{\{}}
+\L{\LB{\C{}\1\* h: mass stepsize \*\1\CE{}}}
+\L{\LB{__\K{double}_\V{h},\V{k}[2][7],\V{n}[2][6];}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* clear dfdmwarn flag for new integration \*\1\CE{}}}
+\L{\LB{__\V{dfdmwarn}_=_0;}}
+\L{\LB{}}
+\L{\LB{__\V{h}_=_\V{m}[\V{j}+1]\-\V{m}[\V{j}];}}
+\L{\LB{}}
+\L{\LB{__\V{k}[0][0]_=_\V{h}_\*_\V{dsdm}(\V{s}[\V{j}],\V{q}[\V{j}]);}}
+\L{\LB{__\V{k}[1][0]_=_\V{h}_\*_\V{dqdm}(\V{m}[\V{j}],\V{s}[\V{j}],\V{q}[\V{j}]);}}
+\L{\LB{__\V{n}[0][0]_=_\V{s}[\V{j}]_+_2e0\19e0\*\V{k}[0][0];}}
+\L{\LB{__\V{n}[1][0]_=_\V{q}[\V{j}]_+_2e0\19e0\*\V{k}[1][0];}}
+\L{\LB{}}
+\L{\LB{__\V{k}[0][1]_=_\V{h}_\*_\V{dsdm}(\V{n}[0][0],\V{n}[1][0]);}}
+\L{\LB{__\V{k}[1][1]_=_\V{h}_\*_\V{dqdm}(\V{m}[\V{j}]+2e0\19e0\*\V{h},\V{n}[0][0],\V{n}[1][0]);}}
+\L{\LB{__\V{n}[0][1]_=_\V{s}[\V{j}]_+_\V{k}[0][0]\112e0+\V{k}[0][1]\14e0;}}
+\L{\LB{__\V{n}[1][1]_=_\V{q}[\V{j}]_+_\V{k}[1][0]\112e0+\V{k}[1][1]\14e0;}}
+\L{\LB{}}
+\L{\LB{__\V{k}[0][2]_=_\V{h}_\*_\V{dsdm}(\V{n}[0][1],\V{n}[1][1]);}}
+\L{\LB{__\V{k}[1][2]_=_\V{h}_\*_\V{dqdm}(\V{m}[\V{j}]+\V{h}\13e0,\V{n}[0][1],\V{n}[1][1]);}}
+\L{\LB{__\V{n}[0][2]_=_\V{s}[\V{j}]_+_\V{k}[0][0]\18e0+3e0\18e0\*\V{k}[0][2];}}
+\L{\LB{__\V{n}[1][2]_=_\V{q}[\V{j}]_+_\V{k}[1][0]\18e0+3e0\18e0\*\V{k}[1][2];}}
+\L{\LB{}}
+\L{\LB{__\V{k}[0][3]_=_\V{h}_\*_\V{dsdm}(\V{n}[0][2],\V{n}[1][2]);}}
+\L{\LB{__\V{k}[1][3]_=_\V{h}_\*_\V{dqdm}(\V{m}[\V{j}]+\V{h}\12e0,\V{n}[0][2],\V{n}[1][2]);}}
+\L{\LB{__\V{n}[0][3]_=_\V{s}[\V{j}]_+__53e0\1125e0\*\V{k}[0][0]_\-__27e0\125e0\*\V{k}[0][1]}}
+\L{\LB{_________________+_126e0\1125e0\*\V{k}[0][2]_+_56e0\1125e0\*\V{k}[0][3];}}
+\L{\LB{__\V{n}[1][3]_=_\V{q}[\V{j}]_+__53e0\1125e0\*\V{k}[1][0]_\-__27e0\125e0\*\V{k}[1][1]}}
+\L{\LB{_________________+_126e0\1125e0\*\V{k}[1][2]_+_56e0\1125e0\*\V{k}[1][3];}}
+\L{\LB{}}
+\L{\LB{__\V{k}[0][4]_=_\V{h}_\*_\V{dsdm}(\V{n}[0][3],\V{n}[1][3]);}}
+\L{\LB{__\V{k}[1][4]_=_\V{h}_\*_\V{dqdm}(\V{m}[\V{j}]+4e0\15e0\*\V{h},\V{n}[0][3],\V{n}[1][3]);}}
+\L{\LB{__\V{n}[0][4]_=_\V{s}[\V{j}]_\-_9e0\14e0\*\V{k}[0][0]_+__27e0\14e0\*\V{k}[0][1]\-_9e0\17e0\*\V{k}[0][2]_}}
+\L{\LB{_________________\-___4e0\*\V{k}[0][3]_+_25e0\114e0\*\V{k}[0][4];}}
+\L{\LB{__\V{n}[1][4]_=_\V{q}[\V{j}]_\-_9e0\14e0\*\V{k}[1][0]_+__27e0\14e0\*\V{k}[1][1]\-_9e0\17e0\*\V{k}[1][2]_}}
+\L{\LB{_________________\-___4e0\*\V{k}[1][3]_+_25e0\114e0\*\V{k}[1][4];}}
+\L{\LB{}}
+\L{\LB{__\V{k}[0][5]_=_\V{h}_\*_\V{dsdm}(\V{n}[0][4],\V{n}[1][4]);}}
+\L{\LB{__\V{k}[1][5]_=_\V{h}_\*_\V{dqdm}(\V{m}[\V{j}]+\V{h},\V{n}[0][4],\V{n}[1][4]);}}
+\L{\LB{__\V{n}[0][5]_=_\V{s}[\V{j}]_+_19e0\124e0\*\V{k}[0][0]_\-____9e0\14e0\*\V{k}[0][1]+_23e0\114e0\*\V{k}[0][2]_}}
+\L{\LB{_________________+___2e0\13e0\*\V{k}[0][3]_+_25e0\1168e0\*\V{k}[0][4];}}
+\L{\LB{__\V{n}[1][5]_=_\V{q}[\V{j}]_+_19e0\124e0\*\V{k}[1][0]_\-____9e0\14e0\*\V{k}[1][1]+_23e0\114e0\*\V{k}[1][2]_}}
+\L{\LB{_________________+___2e0\13e0\*\V{k}[1][3]_+_25e0\1168e0\*\V{k}[1][4];}}
+\L{\LB{}}
+\L{\LB{__\V{k}[0][6]_=_\V{h}_\*_\V{dsdm}(\V{n}[0][5],\V{n}[1][5]);}}
+\L{\LB{__\V{k}[1][6]_=_\V{h}_\*_\V{dqdm}(\V{m}[\V{j}]+\V{h},\V{n}[0][5],\V{n}[1][5]);}}
+\L{\LB{}}
+\L{\LB{__\V{s}[\V{j}+1]_=_\V{s}[\V{j}]_+____5e0\148e0\*\V{k}[0][0]_+_27e0\156e0\*\V{k}[0][2]}}
+\L{\LB{________________+_125e0\1336e0\*\V{k}[0][4]_+__\V{k}[0][5]\124e0;}}
+\L{\LB{__\V{q}[\V{j}+1]_=_\V{q}[\V{j}]_+____5e0\148e0\*\V{k}[1][0]_+_27e0\156e0\*\V{k}[1][2]}}
+\L{\LB{________________+_125e0\1336e0\*\V{k}[1][4]_+__\V{k}[1][5]\124e0;}}
+\L{\LB{}}
+\L{\LB{}}
+\L{\LB{__\V{serror}[\V{j}+1]_=_\V{fabs}(_____3e0\12e0\*\V{k}[0][0]_\-_81e0\17e0\*\V{k}[0][2]_+_16e0\*\V{k}[0][3]_}}
+\L{\LB{}\Tab{8}{______\-_125e0\114e0\*\V{k}[0][4]_+______3e0\*\V{k}[0][6])}}
+\L{\LB{____________\1(\V{ta}\*\V{fabs}(\V{h})+\V{tr}\*\V{fabs}(\V{k}[0][0]));}}
+\L{\LB{}}
+\L{\LB{__\V{qerror}[\V{j}+1]_=_\V{fabs}(_____3e0\12e0\*\V{k}[1][0]_\-_81e0\17e0\*\V{k}[1][2]_+_16e0\*\V{k}[1][3]_}}
+\L{\LB{}\Tab{8}{______\-_125e0\114e0\*\V{k}[1][4]_+______3e0\*\V{k}[1][6])}}
+\L{\LB{____________\1(\V{ta}\*\V{fabs}(\V{h})+\V{tr}\*\V{fabs}(\V{k}[1][0]));}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* if either error is too big return with flag set \*\1\CE{}}}
+\L{\LB{__\K{return}((\V{qerror}[\V{j}+1]_\>_1e0)_\|\,\|_(\V{serror}[\V{j}+1]_\>_1e0)_\|\,\|_\V{dfdmwarn});}}
+\L{\LB{}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* function dsdm(ls,lq) \*\1\CE{}}}
+\L{\LB{\C{}\1\* structure equation for s \*\1\CE{}}}
+\L{\LB{\C{}\1\* gives warning if the exponent is too big \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* input to dsdm: \*\1\CE{}}}
+\L{\LB{\C{}\1\*   ls: value of s to evaluate dsdm for \*\1\CE{}}}
+\L{\LB{\C{}\1\*   lq: value of q to evaluate dsdm for \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* output by dsdm(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*   value of dsdm calculated \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* global variables changable by dsdm(): \*\1\CE{}}}
+\L{\LB{\C{}\1\* dfdmwarn indicating whether the exponent has grown too big \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\K{double}_\V{dsdm}(\K{double}_\V{ls},\K{double}_\V{lq})}}
+\L{\LB{\{}}
+\L{\LB{__\K{double}_\V{te};}}
+\L{\LB{__\V{te}_=_\-\V{lq}\-3e0\*\V{ls};}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* if we want to feed to big a number to the exp function raise warnflag \*\1\CE{}}}
+\L{\LB{__\K{if}_(_\V{te}_\>_\V{MaxExponent}_)_\V{dfdmwarn}_=_1;}}
+\L{\LB{__\K{return}(\V{exp}(\V{te}));}}
+\L{\LB{\}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* function dqdm(lm,ls,lq) \*\1\CE{}}}
+\L{\LB{\C{}\1\* structure equation for q \*\1\CE{}}}
+\L{\LB{\C{}\1\* gives warning if the exponent is too big \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\C{}\1\* input to dqdm: \*\1\CE{}}}
+\L{\LB{\C{}\1\*   lm: value of m to evaluate dqdm for \*\1\CE{}}}
+\L{\LB{\C{}\1\*   ls: value of s to evaluate dqdm for \*\1\CE{}}}
+\L{\LB{\C{}\1\*   lq: value of q to evaluate dqdm for \*\1\CE{}}}
+\L{\LB{\C{}\1\* output by dqdm(): \*\1\CE{}}}
+\L{\LB{\C{}\1\*   value of dqdm calculated \*\1\CE{}}}
+\L{\LB{\C{}\1\* global variables changable by dqdm(): \*\1\CE{}}}
+\L{\LB{\C{}\1\* dfdmwarn indicating whether the exponent has grown too big \*\1\CE{}}}
+\L{\LB{}}
+\L{\LB{\K{double}_\V{dqdm}(\K{double}_\V{lm},\K{double}_\V{ls},\K{double}_\V{lq})}}
+\L{\LB{\{}}
+\L{\LB{__\K{double}_\V{te1},\V{te2};}}
+\L{\LB{__\V{te1}=\-4e0\*\V{ls}\-5e0\*\V{lq}\13e0;}}
+\L{\LB{__\V{te2}=2e0\*\V{lq}\13e0;}}
+\L{\LB{\C{}\1\* if we want to feed to big a number to the exp function raise warnflag \*\1\CE{}}}
+\L{\LB{__\K{if}_(_(\V{te1}_\>_\V{MaxExponent})_\|\,\|_(\V{te2}_\>_\V{MaxExponent})_)_\V{dfdmwarn}_=_1;}}
+\L{\LB{__\K{return}(\-1e0\*\V{lm}\*\V{exp}(\V{te1})\*\V{sqrt}(\V{exp}(\V{te2})+1e0));}}
+\L{\LB{\}}}
+\end{lgrind}
+\end{document}

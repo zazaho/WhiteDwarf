@@ -1,0 +1,26 @@
+
+wdcore.c,307
+#define Ncoremax 5,75
+#define InitialMSteps 10,320
+#define MinimalMStep 14,457
+#define MaxRelErrorQ 18,629
+#define MaxExponent 21,731
+void main(79,2779
+void init(136,4289
+int menu(161,4890
+int findrhoc(254,7283
+int intcore(350,9895
+int rk5(456,13250
+double dsdm(538,16118
+double dqdm(561,16753
+
+wdenv.c,188
+#define MinWstep 6,160
+void main(46,1402
+int menu(106,2922
+void findw(187,4801
+double Pe(225,5860
+double Pd(232,6048
+double MASS(242,6277
+double RADIUS(265,6910
+double X(272,7098
