@@ -1,2 +1,2 @@
 # WhiteDwarf
-Numerical Model of the initerior structure of white dwarfs using numerical integration
+Numerical Model of the interior structure of white dwarfs using numerical integration
